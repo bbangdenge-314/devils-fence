@@ -1,0 +1,134 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>harness</title></head>
+<body>
+<script src="../js/solver.js"></script>
+<script src="../js/generator.js"></script>
+<script>
+window.runGen = function(R,C,diff,seed){
+  var t0 = performance.now();
+  var p = DFGen.generateSync(R,C,diff,seed);
+  var ms = performance.now()-t0;
+  if(!p) return {ok:false, ms:ms};
+  var flat = DFGen.flatClues(p);
+  var check = DFSolver.solveCount(R,C,flat,2,300000);
+  return {ok:true, ms:Math.round(ms), clueCount:p.meta.clueCount, propSolved:p.meta.propSolved,
+          unique:(check.count===1), count:check.count, nodes:check.nodes, solveMs:Math.round(check.ms),
+          clues:p.clues, solution:p.solution, R:R, C:C, difficulty:diff, seed:seed};
+};
+window.testPrefix = function(R,C,diff,seed,removeIdx){
+  var p = DFGen.generateSync(R,C,diff,seed);
+  var flat = Array.from(DFGen.flatClues(p));
+  for (var q=0;q<removeIdx.length;q++) if(flat[removeIdx[q]]>=0) flat[removeIdx[q]]=-1;
+  var arr = new Int8Array(flat);
+  var g = DFSolver.geom(R,C);
+  var fails = [];
+  for (var n=1;n<=p.solution.length;n++){
+    var st = new Uint8Array(g.N);
+    for (var i=0;i<n;i++) st[p.solution[i]]=1;
+    if (!DFSolver.propagate(st, g, arr)) fails.push(n);
+  }
+  // also single edges
+  var single = [];
+  for (var i=0;i<p.solution.length;i++){
+    var st2 = new Uint8Array(g.N); st2[p.solution[i]]=1;
+    if (!DFSolver.propagate(st2, g, arr)) single.push(p.solution[i]);
+  }
+  return {prefixFails: fails.slice(0,20), singleFails: single.slice(0,20)};
+};
+window.testProp = function(R,C,diff,seed,removeIdx){
+  var p = DFGen.generateSync(R,C,diff,seed);
+  var flat = Array.from(DFGen.flatClues(p));
+  for (var q=0;q<removeIdx.length;q++) if(flat[removeIdx[q]]>=0) flat[removeIdx[q]]=-1;
+  var arr = new Int8Array(flat);
+  var g = DFSolver.geom(R,C);
+  var st = new Uint8Array(g.N);
+  for (var i=0;i<p.solution.length;i++) st[p.solution[i]]=1;
+  var cp = st.slice();
+  var ok = DFSolver.propagate(cp, g, arr);
+  // count how many cells with clue have on mismatched in cp
+  var diff = 0; for (var z=0;z<cp.length;z++) if (cp[z]!==st[z]) diff++;
+  return {propOk: ok, diffs: diff, clueCount: p.meta.clueCount, solLen: p.solution.length};
+};
+window.testSol = function(R,C,diff,seed,removeIdx){
+  var p = DFGen.generateSync(R,C,diff,seed);
+  var flat = Array.from(DFGen.flatClues(p));
+  var removed=[];
+  for (var q=0;q<removeIdx.length;q++){ if(flat[removeIdx[q]]>=0){ flat[removeIdx[q]]=-1; removed.push(removeIdx[q]); } }
+  var arr = new Int8Array(flat);
+  var g = DFSolver.geom(R,C);
+  var st = new Uint8Array(g.N);
+  for (var i=0;i<p.solution.length;i++) st[p.solution[i]]=1;
+  var okSol = DFSolver.isValid(st,g,arr);
+  var bad = DFSolver.cluesSatisfied(st,g,arr).length;
+  // propagate from empty
+  var prop = DFSolver.propagateOnly(R,C,arr);
+  var r = DFSolver.solveCount(R,C,arr,1,300000);
+  return {clueCount:p.meta.clueCount, removed:removed, okSol:okSol, badClues:bad, propSolved:prop.solved, propOk:prop.ok,
+          count:r.count, nodes:r.nodes, exceeded:r.exceeded};
+};
+window.testComps = function(R,C){};
+window.testComps = function(R,C,seed){
+  var g = DFSolver.geom(R,C);
+  var gr = DFGen.growLoop(R,C,DFGen.mulberry32(1),0.62);
+  var deg = DFSolver.vertexDegrees(gr.st,g);
+  var st = gr.st;
+  // replicate BFS with sizes
+  var seen=new Uint8Array(g.NV), sizes=[], stack=[], bogus=[];
+  for(var v=0; v<g.NV; v++){
+    if(seen[v]||deg[v]===0) continue;
+    var cnt=0; stack.length=0; stack.push(v); seen[v]=1;
+    while(stack.length){ var cur=stack.pop(); cnt++;
+      var vr=Math.floor(cur/(C+1)), vc=cur%(C+1), b=cur*4;
+      for(var q=0;q<4;q++){ var e=g.vertEdges[b+q]; if(e<0||st[e]!==1) continue; var nr,nc;
+        if(g.eH[e]){ nr=g.eRow[e]; nc=g.eCol[e]+(g.eCol[e]===vc?1:-1); } else { nr=g.eRow[e]+(g.eRow[e]===vr?1:-1); nc=g.eCol[e]; }
+        var nv=nr*(C+1)+nc; if(nv<0||nv>=g.NV) bogus.push([cur,e,nr,nc,nv]); if(!seen[nv]){seen[nv]=1; stack.push(nv);} } }
+    sizes.push(cnt);
+  }
+  return {comps:sizes.length, sizes:sizes, bogus:bogus.slice(0,10), official:DFSolver.countLoops(st,g,deg), NV:g.NV, HC:g.HC};
+};
+window.testTwo = function(){
+  var g = DFSolver.geom(6,6);
+  var st = new Uint8Array(g.N);
+  var put=function(a,bb){st[a]=1;st[bb]=1;};
+  // square (1,1)-(2,2) 1x1 and square (4,4)-(5,5)
+  put(g.H(1,1),g.H(2,1)); put(g.V(1,1),g.V(1,2));
+  put(g.H(4,4),g.H(5,4)); put(g.V(4,4),g.V(4,5));
+  var deg = DFSolver.vertexDegrees(st,g);
+  return {comps: DFSolver.countLoops(st,g,deg)};
+};
+window.testRing = function(R,C,rr,cc){
+  var g = DFSolver.geom(R,C);
+  var st = new Uint8Array(g.N);
+  // rectangle ring around rows 1..rr, cols 1..cc
+  for (var c=1;c<=cc;c++){ st[g.H(1,c)]=1; st[g.H(rr+1,c)]=1; }
+  for (var r=1;r<=rr;r++){ st[g.V(r,1)]=1; st[g.V(r,cc+1)]=1; }
+  var clues = DFGen.deriveClues(R,C,st,g);
+  var bad = DFSolver.cluesSatisfied(st,g,clues);
+  var deg = DFSolver.vertexDegrees(st,g);
+  var badDeg=0; for(var i=0;i<deg.length;i++) if(deg[i]!==0&&deg[i]!==2) badDeg++;
+  var res = DFSolver.solveCount(R,C,clues,2,200000);
+  return {clueBad:bad.length, badDeg:badDeg, count:res.count, nodes:res.nodes};
+};
+window.dbg = function(R,C,frac,seed){
+  var g = DFSolver.geom(R,C);
+  var rand = DFGen.mulberry32(seed);
+  var grown = DFGen.growLoop(R,C,rand,frac);
+  var inside = DFSolver.insideCells(grown.st,g).length;
+  var clues = DFGen.deriveClues(R,C,grown.st,g);
+  var full = DFSolver.solveCount(R,C,clues,2,300000);
+  var valid = DFSolver.isValid(grown.st,g,clues);
+  // remove one clue test
+  var c2 = clues.slice(); c2[0] = -1;
+  var one = DFSolver.solveCount(R,C,c2,2,300000);
+  var deg = DFSolver.vertexDegrees(grown.st,g);
+  var hist = {}; for (var i=0;i<deg.length;i++){ hist[deg[i]]=(hist[deg[i]]||0)+1; }
+  var dup = grown.edges.length !== new Set(grown.edges).size;
+  var comps = DFSolver.countLoops(grown.st,g,deg);
+  var extra = {tries:grown.tries, rej:grown.rej, finalComps:grown.finalComps};
+  var clueBad = DFSolver.cluesSatisfied(grown.st,g,clues).length;
+  return {extra:extra, comps:comps, clueBad2:clueBad, degHist:hist, dup:dup, edges:grown.edges.length, area:grown.area, inside:inside, cells:R*C,
+          fullCount:full.count, fullNodes:full.nodes, fullMs:Math.round(full.ms), loopValid:valid,
+          oneRemoved:one.count, oneNodes:one.nodes, maxClue: Math.max.apply(null, Array.from(clues))};
+};
+</script>
+</body></html>
