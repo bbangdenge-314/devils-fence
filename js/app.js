@@ -764,7 +764,7 @@
     var ov = $('genOverlay');
     ov.classList.add('show');
     $('genText').textContent = '퍼즐 생성 중 · ' + R + ' × ' + C + ' (' + label + ')';
-    GEN.setTimeBudget(needLive ? 5000 : 12000);
+    GEN.setTimeBudget(needLive ? (R >= 10 ? 3200 : 5000) : 12000);
     setTimeout(function () {
       GEN.generateAsync(R, C, diff, (Math.random() * 1e9) | 0, function (p) {
         $('genText').textContent = '유일해 검증 중… ' + Math.round(p * 100) + '%';
