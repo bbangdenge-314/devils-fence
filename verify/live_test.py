@@ -25,10 +25,16 @@ with sync_playwright() as p:
     check("홈 스테이지 5개", pg.eval_on_selector_all(".stage", "n=>n.length") == 5)
     check("잠금 상태 초기 4개", pg.eval_on_selector_all(".stage.locked", "n=>n.length") == 4)
 
-    # 실제 클릭으로 스테이지 1 진입
+    # 실제 클릭으로 스테이지 1 → 문제 선택 → 1번 문제
     pg.click(".stage")
     pg.wait_for_timeout(500)
+    check("문제 선택 화면 25개", pg.eval_on_selector("#screen-select", "e=>!e.classList.contains('hidden')")
+          and pg.eval_on_selector_all(".prob", "n=>n.length") == 25,
+          pg.eval_on_selector_all(".prob", "n=>n.length"))
+    pg.click('.prob[data-no="1"]')
+    pg.wait_for_timeout(500)
     check("스테이지 진입", pg.eval_on_selector("#screen-game", "e=>!e.classList.contains('hidden')"))
+    check("HUD 1번 문제", "1번 문제" in pg.inner_text("#hudSub"), pg.inner_text("#hudSub"))
     check("보드 렌더", pg.eval_on_selector_all(".edge", "n=>n.length") > 0)
 
     box = pg.eval_on_selector("#board", "e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,w:r.width,h:r.height}}")
@@ -82,7 +88,9 @@ with sync_playwright() as p:
     pg.evaluate("()=>window.DFApp.home()")
     pg.wait_for_timeout(400)
     locked = pg.eval_on_selector_all(".stage.locked", "n=>n.length")
-    check("클리어 후 다음 스테이지 해금(라이브)", locked == 3, locked)
+    progress = pg.inner_text("#homeProgress")
+    check("1문제 클리어 → 기록 1/125 · 2단계는 아직 잠금(5문제 필요)",
+          locked == 4 and "1 / 125" in progress, "%s / %s" % (locked, progress))
 
     check("PC 콘솔 오류 0건(라이브)", len(errs) == 0, errs[:3])
 
@@ -95,7 +103,10 @@ with sync_playwright() as p:
     m.wait_for_timeout(600)
     m.click(".stage")
     m.wait_for_timeout(600)
-    m.screenshot(path="/workspace/downloads/devils_fence_live_mobile.png")
+    m.screenshot(path="/workspace/downloads/devils_fence_v4_live_select_mobile.png")
+    m.click('.prob[data-no="1"]')
+    m.wait_for_timeout(600)
+    m.screenshot(path="/workspace/downloads/devils_fence_v4_live_mobile.png")
     geo = m.evaluate("""()=>{
       const hud=document.getElementById('hud').getBoundingClientRect();
       const board=document.getElementById('board').getBoundingClientRect();

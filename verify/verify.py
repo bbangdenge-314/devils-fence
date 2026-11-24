@@ -389,17 +389,24 @@ def from_json(p):
     return Puzzle(p["R"], p["C"], p["clues"], p.get("solution"))
 
 
-def verify_presets(max_nodes=400000, bank_range=None, skip_stages=False):
+def verify_presets(max_nodes=400000, bank_range=None, skip_stages=False, stages=None):
     data = load_presets()
     rows = []
     ok = True
-    for sid, p in ([] if skip_stages else sorted(data.get("stages", {}).items())):
-        pz = from_json(p)
-        probs, cnt, nodes = check_puzzle(pz, sid, max_nodes)
-        print("  stage %s %dx%d solved=%d nodes=%d %s" % (sid, pz.R, pz.C, cnt, nodes, probs), flush=True)
-        rows.append(("stage:" + sid, pz.R, p.get("meta", {}).get("difficulty", "?"),
-                     p.get("meta", {}).get("clueCount", "?"), cnt, nodes, probs))
-        ok = ok and not probs
+    for sid, arr in ([] if skip_stages else sorted(data.get("stages", {}).items())):
+        if stages and sid not in stages:
+            continue
+        bad = 0
+        for i, p in enumerate(arr):
+            pz = from_json(p)
+            probs, cnt, nodes = check_puzzle(pz, "%s-%d" % (sid, i + 1), max_nodes)
+            rows.append(("stage:%s-%d" % (sid, i + 1), pz.R, p.get("meta", {}).get("difficulty", "?"),
+                         p.get("meta", {}).get("clueCount", "?"), cnt, nodes, probs))
+            if probs:
+                bad += 1
+                print("  FAIL stage %s-%d %dx%d solved=%d nodes=%d %s" % (sid, i + 1, pz.R, pz.C, cnt, nodes, probs), flush=True)
+            ok = ok and not probs
+        print("  stage %s: %d문제 중 불량 %d" % (sid, len(arr), bad), flush=True)
     lo, hi = (0, 10 ** 9) if not bank_range else bank_range
     for i, p in enumerate(data.get("bank", [])):
         if not (lo <= i < hi):
@@ -467,6 +474,7 @@ def main():
     ap.add_argument("--per", type=int, default=1)
     ap.add_argument("--bank-range", type=str, default="")
     ap.add_argument("--skip-stages", action="store_true")
+    ap.add_argument("--stage", type=str, default="", help="검사할 단계만 (예: s1,s2) — 15×15는 시간이 오래 걸린다")
     ap.add_argument("--sizes", type=str, default="5,7,10,12,15")
     args = ap.parse_args()
 
@@ -476,7 +484,8 @@ def main():
         if args.bank_range:
             a, b = args.bank_range.split(":")
             br = (int(a), int(b))
-        rows, ok = verify_presets(bank_range=br, skip_stages=args.skip_stages)
+        st_filter = [x.strip() for x in args.stage.split(",") if x.strip()] or None
+        rows, ok = verify_presets(bank_range=br, skip_stages=args.skip_stages, stages=st_filter)
         print("\n=== presets.js 검증 ===")
         print("%-14s %6s %8s %5s %5s %8s  %s" % ("puzzle", "size", "diff", "clue", "sol", "nodes", "problem"))
         for name, size, diff, clue, cnt, nodes, probs in rows:

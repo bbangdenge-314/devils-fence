@@ -104,16 +104,23 @@ def check(p):
 
 def main():
     pres = load_presets()
-    for sid, pz in pres['stages'].items():
-        p = P(pz['R'], pz['C'], pz['clues'], pz['solution'])
-        res = check(p)
-        print(f"{sid} {pz['R']}x{pz['C']} edges={res['edges']} comps={res['components']} "
-              f"badV={len(res['bad_vertices'])} clueBad={len(res['clue_bad'])} ok={res['ok']}")
-        if res['bad_vertices']:
-            print('   bad vertices (r,c,deg):', res['bad_vertices'][:20])
-        if res['clue_bad']:
-            print('   clue mismatches (r,c,clue,count):', res['clue_bad'][:20])
+    bad_total = 0
+    for sid, arr in pres['stages'].items():
+        for i, pz in enumerate(arr):
+            p = P(pz['R'], pz['C'], pz['clues'], pz['solution'])
+            res = check(p)
+            if not res['ok']:
+                bad_total += 1
+                print(f"FAIL {sid}-{i + 1} {pz['R']}x{pz['C']} edges={res['edges']} comps={res['components']} "
+                      f"badV={len(res['bad_vertices'])} clueBad={len(res['clue_bad'])}")
+                if res['bad_vertices']:
+                    print('   bad vertices (r,c,deg):', res['bad_vertices'][:20])
+                if res['clue_bad']:
+                    print('   clue mismatches (r,c,clue,count):', res['clue_bad'][:20])
+        print(f"{sid}: {len(arr)}문제 검사")
+    print('RESULT:', 'PASS' if not bad_total else 'FAIL %d' % bad_total)
+    return 1 if bad_total else 0
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())

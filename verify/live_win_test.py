@@ -9,7 +9,7 @@ import sys
 
 from playwright.sync_api import sync_playwright
 
-URL = "https://bbangdenge-314.github.io/devils-fence/"
+URL = "https://bbangdenge-314.github.io/devils-fence/?v=4"
 fails = []
 
 
@@ -29,16 +29,25 @@ with sync_playwright() as p:
     pg.wait_for_timeout(800)
     pg.wait_for_function("window.DFApp && window.DF_PRESETS")
 
+    check("v4 · 단계별 25문제 배포됨",
+          pg.evaluate("() => Object.keys(DF_PRESETS.stages).every(function (k) { return DF_PRESETS.stages[k].length === 25; })"))
     check("새 판정 코드 배포됨(deadEnds 노출)",
-          pg.evaluate("() => { const pz=DF_PRESETS.stages.s2, g=DFSolver.geom(7,7);"
+          pg.evaluate("() => { const pz=DF_PRESETS.stages.s2[0], g=DFSolver.geom(7,7);"
                       "const st=new Uint8Array(g.N); pz.solution.forEach(e=>st[e]=1);"
                       "return 'deadEnds' in DFSolver.analyze(st,g,DFGen.flatClues(pz)); }"))
 
-    sol = pg.evaluate("() => DF_PRESETS.stages.s2.solution.slice()")
+    # 2단계는 1단계 5문제를 풀어야 열린다 → 라이브 저장소에 기록을 심는다
+    pg.evaluate("""() => {
+      var r = {};
+      for (var i = 0; i < 5; i++) r[i] = { best: 60000 + i * 1000, clears: 1 };
+      DFApp.st.records = { s1: r };
+      localStorage.setItem('df.v2.records', JSON.stringify(DFApp.st.records));
+    }""")
+    sol = pg.evaluate("() => DF_PRESETS.stages.s2[0].solution.slice()")
 
     def play(on_edges, label, expect):
         pg.evaluate("() => { const m=document.getElementById('modalRoot'); m.classList.remove('open'); m.innerHTML=''; }")
-        pg.evaluate("() => DFApp.startStage('s2')")
+        pg.evaluate("() => DFApp.startProblem('s2', 0)")
         pg.wait_for_timeout(150)
         pg.evaluate("(on) => DFApp.paint(on, [])", on_edges)
         pg.wait_for_timeout(1300)

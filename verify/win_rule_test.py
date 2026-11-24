@@ -39,7 +39,7 @@ UNIT_JS = r"""
     out.push({ name: name, expectWin: expectWin, win: r.win, valid: r.valid, info: r.info || null });
   }
   function s2State(removeEdges, addEdges) {
-    var pz = DF_PRESETS.stages.s2;
+    var pz = DF_PRESETS.stages.s2[0];
     var g = DFSolver.geom(pz.R, pz.C);
     var clues = DFGen.flatClues(pz);
     var st = new Uint8Array(g.N);
@@ -57,15 +57,34 @@ UNIT_JS = r"""
   // --- 기준: 정답 ------------------------------------------------
   T('s2 정답', true, function () { return evalState(s2State()); });
   // --- 끊긴 끝(차수 1) -------------------------------------------
-  T('s2 정답에서 변 하나 제거(끊긴 끝 2개)', false, function () { return evalState(s2State([15])); });
-  T('s2 정답에서 다른 변 제거(끊긴 끝 2개)', false, function () { return evalState(s2State([90])); });
-  T('s2 경계 변 제거', false, function () { return evalState(s2State([49])); });
+  T('s2 정답에서 변 하나 제거(끊긴 끝 2개)', false, function () {
+    return evalState(s2State([DF_PRESETS.stages.s2[0].solution[0]]));
+  });
+  T('s2 정답에서 다른 변 제거(끊긴 끝 2개)', false, function () {
+    var sol = DF_PRESETS.stages.s2[0].solution;
+    return evalState(s2State([sol[Math.floor(sol.length / 3)]]));
+  });
+  T('s2 경계 변 제거', false, function () {
+    var pz = DF_PRESETS.stages.s2[0], g = DFSolver.geom(pz.R, pz.C), edge = -1;
+    for (var q = 0; q < pz.solution.length; q++) {
+      var e = pz.solution[q];
+      var border = g.eH[e] ? (g.eRow[e] === 0 || g.eRow[e] === pz.R) : (g.eCol[e] === 0 || g.eCol[e] === pz.C);
+      if (border) { edge = e; break; }
+    }
+    return evalState(s2State([edge >= 0 ? edge : pz.solution[0]]));
+  });
   // --- 분리된 고리 -----------------------------------------------
-  T('s2 정답에서 서로 먼 변 2개 제거(고리 2개로 분리)', false, function () { return evalState(s2State([15, 90])); });
-  T('s2 정답에서 변 3개 제거', false, function () { return evalState(s2State([15, 90, 49])); });
+  T('s2 정답에서 서로 먼 변 2개 제거(고리 2개로 분리)', false, function () {
+    var sol = DF_PRESETS.stages.s2[0].solution;
+    return evalState(s2State([sol[0], sol[Math.floor(sol.length / 2)]]));
+  });
+  T('s2 정답에서 변 3개 제거', false, function () {
+    var sol = DF_PRESETS.stages.s2[0].solution;
+    return evalState(s2State([sol[0], sol[Math.floor(sol.length / 3)], sol[Math.floor(sol.length * 2 / 3)]]));
+  });
   // --- T자 갈라짐(차수 3) ----------------------------------------
   T('s2 정답에 변 하나 추가(차수 3 갈라짐)', false, function () {
-    var pz = DF_PRESETS.stages.s2;
+    var pz = DF_PRESETS.stages.s2[0];
     var o = s2State();
     var extra = -1;
     for (var e = 0; e < o.g.N; e++) {
@@ -116,12 +135,13 @@ UNIT_JS = r"""
 
   // --- 모든 스테이지 정답 ----------------------------------------
   Object.keys(DF_PRESETS.stages).forEach(function (sid) {
-    var pz = DF_PRESETS.stages[sid];
-    var g = DFSolver.geom(pz.R, pz.C);
-    var st = new Uint8Array(g.N);
-    pz.solution.forEach(function (e) { st[e] = 1; });
-    var an = DFSolver.analyze(st, g, DFGen.flatClues(pz));
-    out.push({ name: sid + ' 정답', expectWin: true, win: an.win, valid: DFSolver.isValid(st, g, DFGen.flatClues(pz)) });
+    DF_PRESETS.stages[sid].forEach(function (pz, pi) {
+      var g = DFSolver.geom(pz.R, pz.C);
+      var st = new Uint8Array(g.N);
+      pz.solution.forEach(function (e) { st[e] = 1; });
+      var an = DFSolver.analyze(st, g, DFGen.flatClues(pz));
+      out.push({ name: sid + ' ' + (pi + 1) + '번 정답', expectWin: true, win: an.win, valid: DFSolver.isValid(st, g, DFGen.flatClues(pz)) });
+    });
   });
 
   // --- 무작위 정합성: analyze().win === isValid() ----------------
@@ -133,7 +153,7 @@ UNIT_JS = r"""
     for (var k = 0; k < 400; k++) {
       var st = new Uint8Array(g.N);
       // 정답 근처를 흔든 판 + 완전 무작위 판을 섞는다
-      var src = DF_PRESETS.stages[R === 5 && C === 5 ? 's1' : 's2'];
+      var src = DF_PRESETS.stages[R === 5 && C === 5 ? 's1' : 's2'][0];
       var sg = DFSolver.geom(src.R, src.C);
       var base = new Uint8Array(sg.N);
       src.solution.forEach(function (e) { if (rnd() > 0.06) base[e] = 1; });
@@ -182,7 +202,15 @@ def main():
 
         # ---------- UI ----------
         print('[UI · 실제 화면]', flush=True)
-        sol = pg.evaluate("() => DF_PRESETS.stages.s2.solution.slice()")
+        # v4: 2단계는 앞 단계 5문제를 풀어야 열린다 → 테스트용으로 기록을 심어 둔다
+        pg.evaluate("""() => {
+          var r = {};
+          for (var i = 0; i < 5; i++) r[i] = { best: 60000 + i * 1000, clears: 1 };
+          DFApp.st.records = { s1: r };
+          localStorage.setItem('df.v2.records', JSON.stringify(DFApp.st.records));
+        }""")
+        pg.wait_for_timeout(100)
+        sol = pg.evaluate("() => DF_PRESETS.stages.s2[0].solution.slice()")
 
         def run(kind, on_edges, expect_win, label):
             pg.evaluate("() => { document.getElementById('modalRoot').classList.remove('open'); document.getElementById('modalRoot').innerHTML=''; }")

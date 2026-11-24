@@ -10,12 +10,13 @@
   var NS = 'http://www.w3.org/2000/svg';
 
   var STAGES = [
-    { id: 's1', name: '수련의 방', sub: '5 × 5 · 입문', R: 5, C: 5, diff: 'easy' },
-    { id: 's2', name: '유배지 예선', sub: '7 × 7 · 기본', R: 7, C: 7, diff: 'normal' },
-    { id: 's3', name: '유배지 본선', sub: '10 × 10 · 심화', R: 10, C: 10, diff: 'normal' },
-    { id: 's4', name: '심연의 문', sub: '12 × 12 · 고난도', R: 12, C: 12, diff: 'hard' },
-    { id: 's5', name: '신의 시험', sub: '15 × 15 · 최종', R: 15, C: 15, diff: 'hard' }
+    { id: 's1', name: '수련의 방', sub: '5 × 5 · 입문', R: 5, C: 5, diff: 'easy', total: 25 },
+    { id: 's2', name: '유배지 예선', sub: '7 × 7 · 기본', R: 7, C: 7, diff: 'normal', total: 25 },
+    { id: 's3', name: '유배지 본선', sub: '10 × 10 · 심화', R: 10, C: 10, diff: 'normal', total: 25 },
+    { id: 's4', name: '심연의 문', sub: '12 × 12 · 고난도', R: 12, C: 12, diff: 'hard', total: 25 },
+    { id: 's5', name: '신의 시험', sub: '15 × 15 · 최종', R: 15, C: 15, diff: 'hard', total: 25 }
   ];
+  var UNLOCK_NEED = 5;   // 직전 단계에서 5문제를 풀면 다음 단계 해금
   var SIZES = [5, 7, 10, 12, 15];
   var DIFFS = [
     { key: 'easy', label: '쉬움' },
@@ -24,11 +25,11 @@
   ];
 
   var LS = {
-    records: 'df.v1.records',
-    unlocked: 'df.v1.unlocked',
-    opts: 'df.v1.opts',
-    save: 'df.v1.save'
+    records: 'df.v2.records',
+    opts: 'df.v2.opts',
+    save: 'df.v2.save'
   };
+  var FREE_BEST = 'df.v2.freeBest';
 
   var st = {
     screen: 'home',
@@ -47,11 +48,12 @@
     won: false,
     mode_: 'stage',
     stageId: null,
+    problemIndex: null,
     hint: null,
     drag: null,
     opts: { warn: true, sound: true },
     records: {},
-    unlocked: 1,
+    selectStage: 's1',
     freeSel: { size: 10, diff: 'normal' },
     saveTimer: 0,
     els: {}
@@ -96,6 +98,46 @@
     toastTimer = setTimeout(function () { t.classList.remove('show'); }, 1900);
   }
 
+  /* ---------------- stage / problem helpers ---------------- */
+  function stageById(id) {
+    for (var i = 0; i < STAGES.length; i++) if (STAGES[i].id === id) return STAGES[i];
+    return null;
+  }
+  function stageIndex(id) {
+    for (var i = 0; i < STAGES.length; i++) if (STAGES[i].id === id) return i;
+    return -1;
+  }
+  function stagePuzzles(id) {
+    var a = PRESETS.stages && PRESETS.stages[id];
+    return Object.prototype.toString.call(a) === '[object Array]' ? a : [];
+  }
+  function stageProblem(id, idx) { return stagePuzzles(id)[idx] || null; }
+  function stageRecords(id) { return st.records[id] || {}; }
+  function recOf(id, idx) {
+    var r = stageRecords(id)[idx];
+    return (r && r.clears) ? r : null;
+  }
+  function clearedCount(id) {
+    var m = stageRecords(id), n = 0;
+    for (var k in m) if (m[k] && m[k].clears > 0) n++;
+    return n;
+  }
+  function totalCleared() {
+    var n = 0;
+    STAGES.forEach(function (s) { n += clearedCount(s.id); });
+    return n;
+  }
+  function isStageUnlocked(id) {
+    var i = stageIndex(id);
+    if (i <= 0) return i === 0;
+    return clearedCount(STAGES[i - 1].id) >= UNLOCK_NEED;
+  }
+  function firstUncleared(id) {
+    var s = stageById(id);
+    if (!s) return 0;
+    for (var i = 0; i < s.total; i++) if (!recOf(id, i)) return i;
+    return s.total - 1;
+  }
   /* ---------------- sound ---------------- */
   var actx = null;
   function sfx(kind) {
@@ -625,8 +667,15 @@
     st.hint = null;
     st.mode_ = opts.mode;
     st.stageId = opts.stageId || null;
-    st.boardName = opts.name || '';
-    st.boardSub = opts.sub || (puzzle.R + ' × ' + puzzle.C);
+    st.problemIndex = (opts.problemIndex == null) ? null : opts.problemIndex;
+    if (opts.mode === 'stage' && st.stageId) {
+      var sdef = stageById(st.stageId);
+      st.boardName = sdef ? sdef.name : '유배지 챌린지';
+      st.boardSub = (st.problemIndex != null ? (st.problemIndex + 1) + '번 문제 · ' : '') + puzzle.R + ' × ' + puzzle.C;
+    } else {
+      st.boardName = opts.name || '';
+      st.boardSub = opts.sub || (puzzle.R + ' × ' + puzzle.C);
+    }
     $('hintPanel').classList.add('hidden');
     $('boardArea').style.paddingBottom = '';
     showScreen('game');
@@ -643,11 +692,15 @@
 
   function showScreen(which) {
     st.screen = which;
+    if (which === 'home' || which === 'select') saveNow();
     $('screen-home').classList.toggle('hidden', which !== 'home');
+    $('screen-select').classList.toggle('hidden', which !== 'select');
     $('screen-game').classList.toggle('hidden', which !== 'game');
     if (which === 'home') {
       renderHome();
       if (st.els.svg) layoutBoard();
+    } else if (which === 'select') {
+      renderSelect(st.selectStage);
     } else {
       requestAnimationFrame(layoutBoard);
     }
@@ -658,15 +711,24 @@
     if (!silent && !st.won && st.puzzle && countSet() > 0) {
       openModal({
         title: '판을 나갈까요?',
-        body: '<p style="margin:0;font-size:13.5px;line-height:1.65;color:#c8c3b8">진행 상황은 자동 저장됩니다. 홈에서 <b>이어하기</b>로 돌아올 수 있어요.</p>',
+        body: '<p style="margin:0;font-size:13.5px;line-height:1.65;color:#c8c3b8">진행 상황은 자동 저장됩니다. 문제 목록에서 <b>이어하기</b>로 돌아올 수 있어요.</p>',
         actions: [
           { label: '계속 풀기', kind: 'ghost', onClick: closeModal },
-          { label: '나가기', kind: 'primary', onClick: function () { closeModal(); saveNow(); showScreen('home'); } }
+          { label: '나가기', kind: 'primary', onClick: function () { closeModal(); saveNow(); exitTo(); } }
         ]
       });
       return;
     }
-    showScreen('home');
+    exitTo();
+  }
+
+  function exitTo() {
+    if (st.mode_ === 'stage' && st.stageId) {
+      st.selectStage = st.stageId;
+      showScreen('select');
+    } else {
+      showScreen('home');
+    }
   }
 
   function countSet() {
@@ -692,72 +754,84 @@
     clearSave();
 
     var time = st.elapsed;
-    var recKey = st.mode_ === 'stage' ? st.stageId : null;
+    var isStage = st.mode_ === 'stage' && !!st.stageId && st.problemIndex != null;
     var record = null, isBest = false;
-    if (recKey) {
-      st.records[recKey] = st.records[recKey] || { best: null, clears: 0 };
-      record = st.records[recKey];
+    var stageRecBefore = 0, stageRecAfter = 0, unlockedStage = null;
+    if (isStage) {
+      var sid = st.stageId, pidx = st.problemIndex;
+      var sdef = stageById(sid);
+      st.records[sid] = st.records[sid] || {};
+      var rmap = st.records[sid];
+      record = rmap[pidx] || { best: null, clears: 0 };
+      rmap[pidx] = record;
+      stageRecBefore = clearedCount(sid);
       record.clears = (record.clears || 0) + 1;
       if (record.best == null || time < record.best) { record.best = time; isBest = true; }
       writeJSON(LS.records, st.records);
-      var idx = STAGES.findIndex(function (s) { return s.id === recKey; });
-      if (idx >= 0 && st.unlocked < idx + 2 && idx + 2 <= STAGES.length) {
-        st.unlocked = idx + 2;
-        writeJSON(LS.unlocked, st.unlocked);
+      stageRecAfter = clearedCount(sid);
+      var si = stageIndex(sid);
+      if (stageRecBefore < UNLOCK_NEED && stageRecAfter >= UNLOCK_NEED && si >= 0 && si + 1 < STAGES.length) {
+        unlockedStage = STAGES[si + 1];
       }
     } else {
       st.freeBest = st.freeBest || {};
       var fk = st.puzzle.R + 'x' + st.puzzle.C + '-' + st.puzzle.meta.difficulty;
       var fb = st.freeBest[fk];
-      if (fb == null || time < fb) { st.freeBest[fk] = time; isBest = true; writeJSON('df.v1.freeBest', st.freeBest); }
+      if (fb == null || time < fb) { st.freeBest[fk] = time; isBest = true; writeJSON(FREE_BEST, st.freeBest); }
       renderChips();
       record = { best: st.freeBest[fk], clears: 1 };
     }
 
     setTimeout(function () {
       var node = el('div', 'clear-card');
+      var kicker = isStage
+        ? (stageById(st.stageId).name + ' · ' + (st.problemIndex + 1) + '번 문제')
+        : 'Free Play';
       node.innerHTML =
-        '<div class="clear-kicker">Fence Complete</div>' +
+        '<div class="clear-kicker">' + kicker + '</div>' +
         '<div class="clear-title">울타리 완성</div>' +
-        '<div style="font-size:12.5px;color:#9aa0ad;letter-spacing:.04em">' + (st.boardName || '') + ' · ' + st.boardSub + '</div>' +
+        '<div style="font-size:12.5px;color:#9aa0ad;letter-spacing:.04em">' + (st.boardSub || '') + '</div>' +
         '<div class="clear-stats">' +
         '<div class="clear-stat"><b>' + fmtTime(time) + '</b><small>소요 시간</small></div>' +
         '<div class="clear-stat"><b>' + (record && record.best != null ? fmtTime(record.best) : '--:--') + '</b><small>최고 기록</small></div>' +
         '<div class="clear-stat"><b>' + an.lineCount + '</b><small>울타리 선</small></div>' +
         '</div>' +
-        (isBest ? '<div class="record-flag">NEW RECORD</div>' : '');
+        (isBest ? '<div class="record-flag">NEW RECORD</div>' : '') +
+        (isStage ? '<div class="clear-stage">이 단계 ' + stageRecAfter + ' / ' + stageById(st.stageId).total + ' 클리어</div>' : '') +
+        (isStage && stageRecAfter >= stageById(st.stageId).total ? '<div class="clear-unlock">🏆 이 단계 25문제를 모두 통과했습니다</div>' : '') +
+        (unlockedStage ? '<div class="clear-unlock">🔓 다음 단계 해금 — ' + unlockedStage.name + '</div>' : '');
 
       var actions = [];
-      var stageIdx = st.mode_ === 'stage' ? STAGES.findIndex(function (s) { return s.id === st.stageId; }) : -1;
-      if (stageIdx >= 0 && stageIdx + 1 < STAGES.length) {
-        actions.push({
-          label: '다음 스테이지 →', kind: 'primary', onClick: function () {
-            closeModal();
-            var nx = STAGES[stageIdx + 1];
-            var pz = PRESETS.stages[nx.id];
-            if (!pz) { toast('다음 스테이지를 준비 중입니다'); return; }
-            startPuzzle(pz, { mode: 'stage', stageId: nx.id, name: nx.name, sub: nx.sub });
-          }
-        });
-      }
-      actions.push({
-        label: st.mode_ === 'stage' ? '다시 도전' : '새 퍼즐', kind: stageIdx >= 0 ? 'ghost' : 'primary', onClick: function () {
-          closeModal();
-          if (st.mode_ === 'stage') retryStage();
-          else startFreePlay();
+      if (isStage) {
+        var sTotal = stageById(st.stageId).total;
+        var sid2 = st.stageId, pidx2 = st.problemIndex;
+        if (pidx2 + 1 < sTotal) {
+          actions.push({
+            label: '다음 문제 →', kind: 'primary', onClick: function () {
+              closeModal();
+              openProblem(sid2, pidx2 + 1);
+            }
+          });
+          actions.push({ label: '문제 목록', kind: 'ghost', onClick: function () { closeModal(); openStage(sid2); } });
+        } else {
+          actions.push({ label: '문제 목록', kind: 'primary', onClick: function () { closeModal(); openStage(sid2); } });
         }
-      });
-      actions.push({ label: '홈으로', kind: 'ghost', onClick: function () { closeModal(); showScreen('home'); } });
+        actions.push({ label: '다시 도전', kind: 'ghost', onClick: function () { closeModal(); retryStage(); } });
+      } else {
+        actions.push({
+          label: '새 퍼즐', kind: 'primary', onClick: function () { closeModal(); startFreePlay(); }
+        });
+        actions.push({ label: '홈으로', kind: 'ghost', onClick: function () { closeModal(); showScreen('home'); } });
+      }
       openModal({ title: '클리어', node: node, actions: actions });
     }, 950);
   }
 
   function retryStage() {
-    var s = STAGES.find(function (x) { return x.id === st.stageId; });
-    if (!s) return;
-    var pz = PRESETS.stages[s.id];
+    if (!st.stageId || st.problemIndex == null) return;
+    var pz = stageProblem(st.stageId, st.problemIndex);
     if (!pz) { toast('퍼즐을 불러올 수 없습니다'); return; }
-    startPuzzle(pz, { mode: 'stage', stageId: s.id, name: s.name, sub: s.sub });
+    startPuzzle(pz, { mode: 'stage', stageId: st.stageId, problemIndex: st.problemIndex });
   }
 
   /* ---------------- free play ---------------- */
@@ -832,12 +906,16 @@
     if (!st.puzzle || st.won) return;
     var e = st.els;
     if (!e.svg) return;
+    // 빈 판은 이어하기 목록에 남기지 않는다 (다른 문제의 저장을 덮어쓰지 않도록)
+    if (countSet() === 0) return;
     var b64 = '';
     try { b64 = btoa(String.fromCharCode.apply(null, st.board)); } catch (err) { b64 = ''; }
     writeJSON(LS.save, {
+      v: 2,
       at: Date.now(),
       mode: st.mode_,
       stageId: st.stageId,
+      problemIndex: st.problemIndex,
       name: st.boardName,
       sub: st.boardSub,
       puzzle: { R: st.puzzle.R, C: st.puzzle.C, clues: st.puzzle.clues, solution: st.puzzle.solution, meta: st.puzzle.meta },
@@ -850,9 +928,12 @@
   }
   function resumeSaved() {
     var s = readJSON(LS.save, null);
-    if (!s || !s.puzzle) { toast('이어할 판이 없습니다'); return; }
+    if (!s || !s.puzzle || s.v !== 2) { toast('이어할 판이 없습니다'); return; }
     var b64 = s.board || '';
-    startPuzzle(s.puzzle, { mode: s.mode, stageId: s.stageId, name: s.name, sub: s.sub });
+    startPuzzle(s.puzzle, {
+      mode: s.mode, stageId: s.stageId, problemIndex: s.problemIndex,
+      name: s.name, sub: s.sub
+    });
     if (b64) {
       try {
         var raw = atob(b64);
@@ -870,43 +951,139 @@
   function renderHome() {
     var list = $('stageList');
     list.innerHTML = '';
-    var cleared = 0;
     STAGES.forEach(function (s, idx) {
-      var rec = st.records[s.id];
-      if (rec && rec.clears) cleared++;
-      var locked = idx + 1 > st.unlocked;
-      var row = el('div', 'stage' + (locked ? ' locked' : '') + (rec && rec.clears ? ' cleared' : ''));
+      var done = clearedCount(s.id);
+      var unlocked = isStageUnlocked(s.id);
+      var prevDone = idx > 0 ? clearedCount(STAGES[idx - 1].id) : 0;
+      var row = el('div', 'stage' + (unlocked ? '' : ' locked') + (done === s.total ? ' complete' : (done ? ' cleared' : '')));
+      var lockLine = unlocked ? '' :
+        '<div class="stage-lock">🔒 이전 단계 ' + UNLOCK_NEED + '문제 클리어 시 해금 · 현재 ' +
+        Math.min(prevDone, UNLOCK_NEED) + ' / ' + UNLOCK_NEED + '</div>';
       row.innerHTML =
-        '<div class="stage-num">' + (locked ? '🔒' : (rec && rec.clears ? '✓' : idx + 1)) + '</div>' +
-        '<div><div class="stage-name">' + s.name + '</div><div class="stage-meta">' + s.sub + '</div></div>' +
-        '<div class="stage-best">' + (rec && rec.best != null ? fmtTime(rec.best) : (locked ? '' : '도전')) +
-        (rec && rec.best != null ? '<small>BEST</small>' : '') + '</div>';
+        '<div class="stage-num">' + (unlocked ? (done === s.total ? '✓' : idx + 1) : '🔒') + '</div>' +
+        '<div class="stage-main">' +
+          '<div class="stage-name">' + s.name + '</div>' +
+          '<div class="stage-meta">' + s.sub + ' · ' + s.total + '문제</div>' +
+          '<div class="stage-prog"><i style="width:' + (done / s.total * 100).toFixed(1) + '%"></i></div>' +
+          lockLine +
+        '</div>' +
+        '<div class="stage-best">' + done + ' / ' + s.total + '<small>클리어</small></div>';
       row.onclick = function () {
-        if (locked) { toast('앞 스테이지를 먼저 클리어하세요'); return; }
-        var pz = PRESETS.stages[s.id];
-        if (!pz) { toast('퍼즐을 준비 중입니다'); return; }
-        startPuzzle(pz, { mode: 'stage', stageId: s.id, name: s.name, sub: s.sub });
+        if (!unlocked) {
+          toast('이전 단계 ' + UNLOCK_NEED + '문제를 먼저 클리어하세요 (현재 ' + prevDone + ' / ' + UNLOCK_NEED + ')');
+          return;
+        }
+        openStage(s.id);
       };
       list.appendChild(row);
     });
-    $('homeProgress').textContent = '진행 ' + cleared + ' / ' + STAGES.length;
-    var total = 0, cnt = 0;
-    Object.keys(st.records).forEach(function (k) {
-      if (st.records[k].best != null) { total += st.records[k].best; cnt++; }
-    });
-    $('homeTotal').textContent = cnt ? '베스트 합 ' + fmtTime(total) : '기록 없음';
+    $('homeProgress').textContent = '총 클리어 ' + totalCleared() + ' / ' + (STAGES.length * 25);
+    var open = 0;
+    STAGES.forEach(function (s) { if (isStageUnlocked(s.id)) open++; });
+    $('homeTotal').textContent = '단계 ' + open + ' / ' + STAGES.length + ' 개방';
 
     // resume button
     var foot = document.querySelector('.home-foot');
     var old = $('btnResume');
     if (old) old.remove();
-    var s = readJSON(LS.save, null);
-    if (s && s.puzzle) {
-      var rb = el('button', 'btn gold', '⏵ 이어하기 · ' + (s.name || '') + ' ' + fmtTime(s.elapsed || 0));
+    var sv = readJSON(LS.save, null);
+    if (sv && sv.puzzle && sv.v === 2) {
+      var label = (sv.name || '') + (sv.problemIndex != null ? ' ' + (sv.problemIndex + 1) + '번' : '') + ' · ' + fmtTime(sv.elapsed || 0);
+      var rb = el('button', 'btn gold', '⏵ 이어하기 · ' + label);
       rb.id = 'btnResume';
       rb.onclick = resumeSaved;
       foot.insertBefore(rb, foot.firstChild);
     }
+  }
+
+  function openStage(stageId) {
+    var s = stageById(stageId);
+    if (!s) return false;
+    if (!isStageUnlocked(stageId)) {
+      var si = stageIndex(stageId);
+      toast('이전 단계 ' + UNLOCK_NEED + '문제를 먼저 클리어하세요 (현재 ' +
+        (si > 0 ? clearedCount(STAGES[si - 1].id) : 0) + ' / ' + UNLOCK_NEED + ')');
+      return false;
+    }
+    st.selectStage = stageId;
+    showScreen('select');
+    return true;
+  }
+
+  function openProblem(stageId, idx) {
+    var s = stageById(stageId);
+    if (!s) return false;
+    if (!isStageUnlocked(stageId)) {
+      toast('이전 단계 ' + UNLOCK_NEED + '문제를 먼저 클리어하세요');
+      return false;
+    }
+    if (idx < 0 || idx >= s.total) return false;
+    var pz = stageProblem(stageId, idx);
+    if (!pz) { toast('문제를 준비 중입니다'); return false; }
+    st.selectStage = stageId;
+    if (savedMatch(stageId, idx)) { resumeSaved(); return true; }
+    startPuzzle(pz, { mode: 'stage', stageId: stageId, problemIndex: idx });
+    return true;
+  }
+
+  function savedMatch(stageId, idx) {
+    var sv = readJSON(LS.save, null);
+    if (!sv || sv.v !== 2 || sv.mode !== 'stage') return null;
+    if (sv.stageId !== stageId || sv.problemIndex !== idx) return null;
+    return sv;
+  }
+
+  function renderSelect(stageId) {
+    var s = stageById(stageId) || STAGES[0];
+    st.selectStage = s.id;
+    var puzzles = stagePuzzles(s.id);
+    var done = clearedCount(s.id);
+    var si = stageIndex(s.id);
+    $('selectKicker').textContent = 'Stage ' + (si + 1) + ' · ' + s.sub;
+    $('selectName').textContent = s.name;
+    $('selectSub').textContent = s.total + '문제 · 모두 자유 선택';
+    $('selectCleared').textContent = done + ' / ' + s.total;
+    $('selectBar').style.width = (done / s.total * 100).toFixed(1) + '%';
+
+    var grid = $('problemGrid');
+    grid.innerHTML = '';
+    for (var i = 0; i < s.total; i++) {
+      var rec = recOf(s.id, i);
+      var pz = puzzles[i];
+      var pending = !rec && savedMatch(s.id, i);
+      var b = el('button', 'prob' + (rec ? ' cleared' : '') + (pending ? ' pending' : ''));
+      b.type = 'button';
+      b.setAttribute('data-no', i + 1);
+      var stars = (pz && pz.meta && pz.meta.stars) ? pz.meta.stars : 0;
+      var starStr = stars ? new Array(stars + 1).join('★') + new Array(4 - stars).join('☆') : '';
+      b.innerHTML =
+        '<span class="prob-no">' + (i + 1) + '</span>' +
+        '<span class="prob-stars">' + starStr + '</span>' +
+        '<span class="prob-time">' + (rec && rec.best != null ? fmtTime(rec.best) : (pending ? '이어서' : '도전')) + '</span>' +
+        (rec ? '<span class="prob-check">✓</span>' : '');
+      b.onclick = (function (idx) {
+        return function () { openProblem(s.id, idx); };
+      })(i);
+      grid.appendChild(b);
+    }
+
+    var nx = STAGES[si + 1];
+    var note;
+    if (nx) {
+      note = done >= UNLOCK_NEED
+        ? '🔓 ' + nx.name + ' 해금 완료 · 이 단계 ' + done + ' / ' + UNLOCK_NEED
+        : '이 단계에서 ' + UNLOCK_NEED + '문제를 풀면 ' + nx.name + '이 열립니다 · 현재 ' + done + ' / ' + UNLOCK_NEED;
+      note += ' · 안에서는 원하는 번호를 골라 푸세요.';
+    } else {
+      note = '마지막 단계입니다 · 25문제 모두 원하는 순서로 풀 수 있습니다.';
+    }
+    $('selectNote').textContent = note;
+
+    var allDone = done >= s.total;
+    var nextIdx = allDone ? 0 : firstUncleared(s.id);
+    var nb = $('btnSelectNext');
+    nb.textContent = allDone ? '1번부터 다시 →' : '다음 도전 문제 · ' + (nextIdx + 1) + '번 →';
+    nb.onclick = function () { openProblem(s.id, nextIdx); };
   }
 
   function renderChips() {
@@ -1073,13 +1250,25 @@
     node.appendChild(row('실시간 오류 경고', '숫자를 넘긴 칸과 갈라진 교차점을 빨갛게 표시합니다. 방송 실전 모드에서는 꺼 두세요.', 'warn'));
     node.appendChild(row('사운드 효과', '선을 그을 때와 완성했을 때의 짧은 효과음.', 'sound'));
     var reset = el('div', 'opt-row');
-    reset.innerHTML = '<div class="opt-text"><b>기록 초기화</b><small>스테이지 최고 기록과 진행도를 지웁니다.</small></div>';
+    reset.innerHTML = '<div class="opt-text"><b>기록 초기화</b><small>125문제의 클리어 기록·최고 시간과 단계 해금이 모두 처음으로 돌아갑니다.</small></div>';
     var rb = el('button', 'btn ghost', '초기화');
     rb.onclick = function () {
-      st.records = {}; st.unlocked = 1; st.freeBest = {};
-      writeJSON(LS.records, {}); writeJSON(LS.unlocked, 1); writeJSON('df.v1.freeBest', {});
-      renderHome();
-      toast('기록을 초기화했습니다');
+      openModal({
+        title: '기록을 초기화할까요?',
+        body: '<p style="margin:0;font-size:13.5px;line-height:1.65;color:#c8c3b8">모든 단계의 클리어 기록과 최고 시간이 지워지고, 1단계만 열린 상태로 돌아갑니다. 되돌릴 수 없습니다.</p>',
+        actions: [
+          { label: '취소', kind: 'ghost', onClick: function () { closeModal(); openOptions(); } },
+          {
+            label: '초기화', kind: 'primary', onClick: function () {
+              st.records = {}; st.freeBest = {};
+              writeJSON(LS.records, {}); writeJSON(FREE_BEST, {});
+              closeModal();
+              renderHome();
+              toast('기록을 초기화했습니다');
+            }
+          }
+        ]
+      });
     };
     reset.appendChild(rb);
     node.appendChild(reset);
@@ -1100,6 +1289,8 @@
     svg.addEventListener('contextmenu', onContextMenu);
 
     $('btnBack').onclick = function () { leaveGame(false); };
+    $('btnSelectBack').onclick = function () { showScreen('home'); };
+    $('btnSelectHome').onclick = function () { showScreen('home'); };
     $('btnUndo').onclick = function () {
       if (st.won) { toast('완성된 울타리는 되돌릴 수 없습니다'); return; }
       if (!st.history.length) return;
@@ -1136,6 +1327,7 @@
               commitEdit();
               resetTimer();
               startTimer();
+              clearSave();
               st.els.svg.classList.remove('cleared');
             }
           }
@@ -1196,7 +1388,7 @@
   function renderHeroArt() {
     var host = $('heroArt');
     if (!host) return;
-    var pz = PRESETS.stages && PRESETS.stages.s2;
+    var pz = stagePuzzles('s2')[0];
     if (!pz) return;
     var g = S.geom(pz.R, pz.C);
     var R = pz.R, C = pz.C;
@@ -1241,9 +1433,8 @@
   /* ---------------- boot ---------------- */
   function boot() {
     st.records = readJSON(LS.records, {});
-    st.unlocked = readJSON(LS.unlocked, 1) || 1;
-    st.freeBest = readJSON('df.v1.freeBest', {});
-    var o = readJSON(LS.opts, null);
+    st.freeBest = readJSON(FREE_BEST, {});
+    var o = readJSON(LS.opts, null) || readJSON('df.v1.opts', null);
     if (o) { st.opts.warn = o.warn !== false; st.opts.sound = o.sound !== false; }
     bind();
     renderChips();
@@ -1258,13 +1449,19 @@
   // expose for automated tests
   window.DFApp = {
     st: st,
-    startStage: function (id) {
-      var s = STAGES.filter(function (x) { return x.id === id; })[0];
-      var pz = PRESETS.stages[id];
-      if (!s || !pz) return false;
-      startPuzzle(pz, { mode: 'stage', stageId: s.id, name: s.name, sub: s.sub });
-      return true;
+    startStage: function (id, idx) {
+      return openProblem(id, idx == null ? 0 : idx);
     },
+    openStage: openStage,
+    startProblem: openProblem,
+    stageState: function (id) {
+      var s = stageById(id);
+      return { id: id, cleared: clearedCount(id), total: s ? s.total : 0,
+               unlocked: isStageUnlocked(id), puzzles: stagePuzzles(id).length };
+    },
+    records: function () { return st.records; },
+    problemIndex: function () { return st.problemIndex; },
+    totalCleared: totalCleared,
     startFree: startFreePlay,
     setFree: function (size, diff) { st.freeSel.size = size; st.freeSel.diff = diff; renderChips(); },
     showHint: showHint,

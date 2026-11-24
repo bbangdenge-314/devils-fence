@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""v3 회귀 검증 — 캐시 갱신 표기 + 자유 플레이/이어하기에서 클리어 판정과 툴바 잠금이 어긋나지 않는지.
+"""v4 회귀 검증 — 캐시 갱신 표기 + 자유 플레이/이어하기에서 클리어 판정과 툴바 잠금이 어긋나지 않는지.
 
 로컬 서버(_serve.py, no-store)로 띄워서 검사한다.
- 1. index.html 이 css/js ?v=3 을 물고 오고 v3 배지가 보인다
+ 1. index.html 이 css/js ?v=4 를 물고 오고 v4 배지가 보인다
  2. 자유 플레이 7×7 쉬움 → 몇 변 긋고 홈 → 이어하기 → 정답 → 클리어(툴바 잠금)
  3. 분기 저장(📌) → 복원 → 정답 → 클리어
  4. 숫자만 맞고 울타리가 끊긴 판(옛 오판정 시나리오)은 클리어 아님
@@ -16,7 +16,7 @@ from _serve import serve
 
 ROOT = __file__.rsplit('/verify/', 1)[0]
 PORT = 8771
-URL = 'http://127.0.0.1:%d/index.html?v=3' % PORT
+URL = 'http://127.0.0.1:%d/index.html?v=4' % PORT
 
 fails = []
 
@@ -38,9 +38,9 @@ with sync_playwright() as p:
     pg.wait_for_timeout(700)
 
     # 1) 버전 표기
-    check('홈 v3 배지 보임', pg.is_visible('#appVer') and pg.inner_text('#appVer').strip() == 'v3')
+    check('홈 v4 배지 보임', pg.is_visible('#appVer') and pg.inner_text('#appVer').strip() == 'v4')
     assets = pg.evaluate("() => Array.from(document.querySelectorAll('link[rel=stylesheet],script[src]')).map(n => n.getAttribute('href') || n.getAttribute('src'))")
-    check('css/js 전부 ?v=3', all(a.endswith('?v=3') for a in assets), assets)
+    check('css/js 전부 ?v=4', all(a.endswith('?v=4') for a in assets), assets)
 
     def clear_modal():
         pg.evaluate("() => { const m=document.getElementById('modalRoot'); m.classList.remove('open'); m.innerHTML=''; }")
@@ -89,24 +89,42 @@ with sync_playwright() as p:
     check('클리어 후 cleared + 툴바 전부 잠김',
           t['cleared'] is True and t['undo'] and t['redo'] and t['restore'] and t['reset'], t)
     check('클리어 모달 표시', pg.evaluate("() => document.getElementById('modalRoot').classList.contains('open')") is True)
-    pg.screenshot(path='/workspace/downloads/devils_fence_v3_free_resume_win.png')
+    pg.screenshot(path='/workspace/downloads/devils_fence_v4_free_resume_win.png')
     clear_modal()
     pg.evaluate("() => DFApp.home()")
     pg.wait_for_timeout(300)
     check('클리어 후 저장 지워져 이어하기 없음', pg.is_visible('#btnResume') is False)
 
     # 3) 숫자만 맞고 끊긴 판은 클리어 아님 (옛 오판정 회귀)
+    #    v4: 2단계는 앞 단계 5문제를 풀어야 열린다 → 기록을 심어 해금한다
+    pg.evaluate("""() => {
+      var r = {};
+      for (var i = 0; i < 5; i++) r[i] = { best: 60000 + i * 1000, clears: 1 };
+      DFApp.st.records = { s1: r };
+      localStorage.setItem('df.v2.records', JSON.stringify(DFApp.st.records));
+    }""")
     pg.evaluate("() => DFApp.startStage('s2')")
     pg.wait_for_timeout(250)
-    s2 = pg.evaluate("() => DF_PRESETS.stages.s2.solution.slice()")
-    pg.evaluate("(on) => DFApp.paint(on, [])", [e for e in s2 if e != 15])
+    s2 = pg.evaluate("() => DF_PRESETS.stages.s2[0].solution.slice()")
+    # 숫자는 그대로 두고 울타리만 끊는 변: 양옆 칸에 단서가 없는 해답 변
+    cut = pg.evaluate("""() => {
+      var pz = DF_PRESETS.stages.s2[0], g = DFSolver.geom(pz.R, pz.C);
+      for (var q = 0; q < pz.solution.length; q++) {
+        var e = pz.solution[q], r = g.eRow[e], c = g.eCol[e], cells = [];
+        if (g.eH[e]) { if (r > 0) cells.push([r - 1, c]); if (r < pz.R) cells.push([r, c]); }
+        else { if (c > 0) cells.push([r, c - 1]); if (c < pz.C) cells.push([r, c]); }
+        if (cells.every(function (rc) { return pz.clues[rc[0]][rc[1]] < 0; })) return e;
+      }
+      return -1;
+    }""")
+    pg.evaluate("(on) => DFApp.paint(on, [])", [e for e in s2 if e != cut])
     pg.wait_for_timeout(1300)
     t = toolbar()
     check('숫자만 맞고 끊긴 판 → 클리어 아님 · 초기화는 살아 있음',
           pg.evaluate("() => DFApp.win()") is False and t['cleared'] is False
           and t['reset'] is False, t)
     gold = pg.evaluate("() => document.querySelectorAll('#board .vertOpen').length")
-    check('끊긴 교차점 금색 표시 있음', gold > 0, gold)
+    check('끊긴 교차점 금색 표시 있음', cut >= 0 and gold > 0, 'cut=%s gold=%s' % (cut, gold))
 
     # 4) 스테이지 진짜 정답 → 클리어 + 툴바 잠금
     pg.evaluate("(on) => DFApp.paint(on, [])", list(s2))
@@ -117,8 +135,8 @@ with sync_playwright() as p:
           and t['undo'] and t['redo'] and t['restore'] and t['reset'], t)
 
     # HUD 버전 표기
-    check('게임 HUD에 v3 표기', pg.is_visible('#hudVer') and pg.inner_text('#hudVer').strip() == 'v3')
-    pg.screenshot(path='/workspace/downloads/devils_fence_v3_mobile_win.png')
+    check('게임 HUD에 v4 표기', pg.is_visible('#hudVer') and pg.inner_text('#hudVer').strip() == 'v4')
+    pg.screenshot(path='/workspace/downloads/devils_fence_v4_mobile_win.png')
     check('콘솔 오류 0건', not errs, errs[:3])
     b.close()
 httpd.shutdown()

@@ -7,7 +7,7 @@
 <meta name="description" content="데블스 플랜 3 유배지 매치 — 울타리 치기(슬리더링크). 단 하나의 닫힌 고리로 모든 숫자를 만족시키는 퍼즐.">
 <title>울타리 치기 · DEVIL'S FENCE</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23090a10'/%3E%3Cpath d='M8 22V10h5v12M15 22V10h5v12' stroke='%23e9c987' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3Cpath d='M5 12h22M5 20h22' stroke='%23dc3450' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="css/style.css?v=3">
+<link rel="stylesheet" href="css/style.css?v=4">
 </head>
 <body>
 <div class="bg-grid" aria-hidden="true"></div>
@@ -23,16 +23,16 @@
         <p class="brand-sub">단 하나의 닫힌 고리로 모든 숫자를 만족시켜라</p>
       </div>
       <div class="home-badges">
-        <span class="badge" id="homeProgress">진행 0 / 5</span>
+        <span class="badge" id="homeProgress">총 클리어 0 / 125</span>
         <span class="badge" id="homeTotal">기록 없음</span>
-        <span class="badge ver" id="appVer" title="현재 버전">v3</span>
+        <span class="badge ver" id="appVer" title="현재 버전">v4</span>
       </div>
     </header>
 
     <div class="home-grid">
       <article class="panel">
         <div class="panel-top"><span class="tag">Stage</span><h2>유배지 챌린지</h2></div>
-        <p class="panel-desc">5×5 입문에서 15×15 신의 시험까지. 앞 스테이지를 깨야 다음 문이 열립니다.</p>
+        <p class="panel-desc">단계마다 25문제. 단계 안에서는 원하는 번호를 골라 풀 수 있고, 앞 단계에서 5문제를 풀면 다음 단계가 열립니다.</p>
         <div class="stage-list" id="stageList"></div>
       </article>
 
@@ -55,7 +55,32 @@
     <footer class="home-foot">
       <button class="btn ghost" id="btnGuideHome">📜 규칙 · 공략</button>
       <button class="btn ghost" id="btnOptionsHome">⚙️ 옵션</button>
-      <span class="foot-note">v3 · Slitherlink · 울타리 치기</span>
+      <span class="foot-note">v4 · Slitherlink · 울타리 치기</span>
+    </footer>
+  </section>
+
+  <!-- ===== PROBLEM SELECT ===== -->
+  <section id="screen-select" class="screen hidden">
+    <header class="select-head">
+      <button class="icon-btn" id="btnSelectBack" title="홈으로" aria-label="홈으로">←</button>
+      <div class="select-title">
+        <span class="brand-kicker" id="selectKicker">Stage 1</span>
+        <h2 id="selectName">수련의 방</h2>
+        <p class="select-sub" id="selectSub">5 × 5 · 입문 · 25문제</p>
+      </div>
+      <div class="select-progress">
+        <b id="selectCleared">0 / 25</b>
+        <small>클리어</small>
+      </div>
+    </header>
+    <div class="select-bar">
+      <div class="prog-track"><i id="selectBar"></i></div>
+      <p class="select-note" id="selectNote">1번부터 25번까지 모두 열려 있습니다. 하고 싶은 번호를 골라 푸세요.</p>
+    </div>
+    <div class="problem-grid" id="problemGrid"></div>
+    <footer class="select-foot">
+      <button class="btn ghost" id="btnSelectHome">← 홈</button>
+      <button class="btn gold" id="btnSelectNext">다음 도전 문제 →</button>
     </footer>
   </section>
 
@@ -65,7 +90,7 @@
       <button class="icon-btn" id="btnBack" title="나가기" aria-label="나가기">←</button>
       <div class="hud-title">
         <span id="hudMode">유배지 예선</span>
-        <span class="hud-meta"><small id="hudSub">7 × 7</small><i id="hudVer" title="현재 버전">v3</i></span>
+        <span class="hud-meta"><small id="hudSub">7 × 7</small><i id="hudVer" title="현재 버전">v4</i></span>
       </div>
       <div class="hud-timer">
         <span id="timer">00:00</span>
@@ -125,9 +150,9 @@
   </div>
 </div>
 
-<script src="js/solver.js?v=3"></script>
-<script src="js/generator.js?v=3"></script>
-<script src="js/presets.js?v=3"></script>
-<script src="js/app.js?v=3"></script>
+<script src="js/solver.js?v=4"></script>
+<script src="js/generator.js?v=4"></script>
+<script src="js/presets.js?v=4"></script>
+<script src="js/app.js?v=4"></script>
 </body>
 </html>
