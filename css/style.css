@@ -61,7 +61,8 @@ body {
 .screen.hidden { display: none; }
 
 /* ---------------- home ---------------- */
-#screen-home { overflow-y: auto; padding: 22px clamp(16px, 4vw, 46px) 20px; }
+#screen-home { overflow-y: auto; padding: 22px clamp(16px, 4vw, 46px) 20px; position: relative; }
+
 #screen-home .home-grid { flex: 1 1 auto; align-content: start; }
 #screen-home .home-foot { flex: 0 0 auto; }
 

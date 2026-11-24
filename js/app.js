@@ -1163,6 +1163,52 @@
     writeJSON(LS.opts, st.opts);
   }
 
+  /* ---------------- decorative solved-board art ---------------- */
+  function renderHeroArt() {
+    var host = $('heroArt');
+    if (!host) return;
+    var pz = PRESETS.stages && PRESETS.stages.s2;
+    if (!pz) return;
+    var g = S.geom(pz.R, pz.C);
+    var R = pz.R, C = pz.C;
+    var NS = 'http://www.w3.org/2000/svg';
+    var svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', '-0.6 -0.6 ' + (C + 1.2) + ' ' + (R + 1.2));
+    var defs = document.createElementNS(NS, 'defs');
+    defs.innerHTML = '<linearGradient id="heroGrad" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="' + C + '" y2="' + R + '">' +
+      '<stop offset="0%" stop-color="#ff6a49"/><stop offset="45%" stop-color="#d21f40"/><stop offset="100%" stop-color="#ffb268"/></linearGradient>';
+    svg.appendChild(defs);
+    var i, r, c;
+    for (r = 0; r < R; r++) {
+      for (c = 0; c < C; c++) {
+        var k = pz.clues[r][c];
+        if (k == null || k < 0) continue;
+        var t = document.createElementNS(NS, 'text');
+        t.setAttribute('x', c + 0.5); t.setAttribute('y', r + 0.52);
+        t.setAttribute('text-anchor', 'middle');
+        t.setAttribute('font-size', '0.42');
+        t.setAttribute('font-family', 'inherit');
+        t.setAttribute('font-weight', '700');
+        t.setAttribute('fill', 'rgba(236,230,220,.20)');
+        t.textContent = k;
+        svg.appendChild(t);
+      }
+    }
+    pz.solution.forEach(function (e) {
+      var ln = document.createElementNS(NS, 'line');
+      var x1, y1, x2, y2;
+      if (g.eH[e]) { x1 = g.eCol[e]; y1 = g.eRow[e]; x2 = x1 + 1; y2 = y1; }
+      else { x1 = g.eCol[e]; y1 = g.eRow[e]; x2 = x1; y2 = y1 + 1; }
+      ln.setAttribute('x1', x1); ln.setAttribute('y1', y1);
+      ln.setAttribute('x2', x2); ln.setAttribute('y2', y2);
+      ln.setAttribute('stroke', 'url(#heroGrad)');
+      ln.setAttribute('stroke-width', '0.12');
+      ln.setAttribute('stroke-linecap', 'round');
+      svg.appendChild(ln);
+    });
+    host.appendChild(svg);
+  }
+
   /* ---------------- boot ---------------- */
   function boot() {
     st.records = readJSON(LS.records, {});
