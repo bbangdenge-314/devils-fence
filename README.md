@@ -68,6 +68,9 @@
 ### 검증 스크립트
 
 ```bash
+# 배포된 라이브 사이트 최종 검증 (홈 → 스테이지 → 플레이 → 클리어)
+python3 verify/live_test.py
+
 # 저장된 스테이지·뱅크 퍼즐 전체를 파이썬 독립 솔버로 재검증
 python3 verify/verify.py --presets
 
@@ -95,7 +98,8 @@ js/generator.js       고리 생성 · 단서 도출 · 유일해 유지 단서 
 js/presets.js         검증된 스테이지 프리셋 + 자유 플레이 퍼즐 풀
 js/app.js             보드 렌더링 · 입력 · 타이머 · 기록 · 모달
 verify/verify.py      퍼즐 검증기 (파이썬 독립 솔버)
-verify/ui_test.py     Playwright 실플레이 검증
+verify/ui_test.py     Playwright 실플레이 검증(로컬)
+verify/live_test.py   배포 사이트 최종 검증(라이브 URL)
 ```
 
 ## 만든 사람
