@@ -354,7 +354,8 @@
       clueOk: new Uint8Array(g.R * g.C),
       clueOver: new Uint8Array(g.R * g.C),
       cellViolations: [],     // clues impossible to satisfy
-      vertexBad: [],          // degree>2 or dead end
+      vertexBad: [],          // degree>2 or provably dead end (UI 경고용)
+      deadEnds: [],           // 차수 1·3·4 (판정용: 하나라도 있으면 클리어 아님)
       deg: new Int8Array(g.NV),
       closed: false,
       loops: 0,
@@ -388,6 +389,9 @@
     vertexDegrees(st, g, res.deg);
     for (var v = 0; v < g.NV; v++) {
       var d = res.deg[v];
+      // 판정: 울타리의 한 점은 반드시 0개 아니면 2개. 1개(끊긴 끝)나 3개 이상(갈라짐)은 절대 클리어가 아니다.
+      // 끝에 붙은 변이 아직 비어 있어도(플레이 중일 수 있으므로) 판정에서는 무조건 위반으로 본다.
+      if (d !== 0 && d !== 2) res.deadEnds.push(v);
       if (d > 2) { res.vertexBad.push(v); continue; }
       if (d === 1) {
         var b = v * 4, unk2 = 0;
@@ -395,12 +399,11 @@
         if (unk2 === 0) res.vertexBad.push(v);
       }
     }
-    if (res.lineCount && res.vertexBad.length === 0 && res.unsolvedClues === 0 && res.cellViolations.length === 0) {
-      var comps = countLoops(st, g, res.deg);
-      res.loops = comps;
-      res.closed = true;
-      if (comps === 1 && cluesSatisfied(st, g, clues).length === 0) res.win = true;
-    }
+    res.loops = res.lineCount > 0 ? countLoops(st, g, res.deg) : 0;
+    res.closed = res.lineCount > 0 && res.deadEnds.length === 0 && res.loops === 1;
+    // 클리어 조건: ① 모든 숫자 단서가 정확히 일치 ② 모든 교차점 차수가 0 또는 2
+    //             ③ 선이 단 하나의 연결 요소(닫힌 고리 하나) ④ 선이 하나 이상
+    res.win = res.closed && res.unsolvedClues === 0 && res.cellViolations.length === 0;
     return res;
   }
 

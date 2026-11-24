@@ -282,6 +282,9 @@ body {
 
 .vertWarn { fill: none; stroke: var(--bad); stroke-width: .07; opacity: 0; }
 .vertWarn.show { opacity: .95; }
+.vertOpen { fill: rgba(233, 201, 135, .18); stroke: rgba(233, 201, 135, .85); stroke-width: .06; opacity: 0; }
+.vertOpen.show { opacity: 1; animation: openPulse 1.5s ease-in-out infinite; }
+@keyframes openPulse { 0%, 100% { opacity: .45; } 50% { opacity: 1; } }
 
 .insidePlate { fill: rgba(233, 201, 135, .075); opacity: 0; transition: opacity .5s ease; }
 svg.cleared .insidePlate { opacity: 1; }

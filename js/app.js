@@ -323,6 +323,14 @@
         var vr = Math.floor(v / (e.C + 1)), vc = v % (e.C + 1);
         e.gWarn.appendChild(svgEl('circle', { cx: vc, cy: vr, r: 0.11, 'class': 'vertWarn show' }));
       }
+      // 숫자는 다 맞았는데 울타리가 끊겨 있으면, 끊긴 교차점을 금색으로 짚어 준다
+      if (an.unsolvedClues === 0 && an.cellViolations.length === 0 && an.deadEnds.length) {
+        for (var q2 = 0; q2 < an.deadEnds.length; q2++) {
+          var v2 = an.deadEnds[q2];
+          var vr2 = Math.floor(v2 / (e.C + 1)), vc2 = v2 % (e.C + 1);
+          e.gWarn.appendChild(svgEl('circle', { cx: vc2, cy: vr2, r: 0.13, 'class': 'vertOpen show' }));
+        }
+      }
     }
     // stats
     $('statLeft').textContent = an.unsolvedClues;
@@ -331,9 +339,10 @@
     $('statLine').textContent = an.lineCount;
     $('statErrWrap').classList.toggle('warn', errCount > 0);
     $('statLeftWrap').classList.toggle('warn', false);
-    $('btnUndo').disabled = st.history.length === 0;
-    $('btnRedo').disabled = st.future.length === 0;
-    $('btnRestore').disabled = st.marks.length === 0;
+    $('btnUndo').disabled = st.history.length === 0 || st.won;
+    $('btnRedo').disabled = st.future.length === 0 || st.won;
+    $('btnRestore').disabled = st.marks.length === 0 || st.won;
+    $('btnReset').disabled = !!st.won;
     $('btnRestore').innerHTML = '↩️ <span>복원' + (st.marks.length ? ' ' + st.marks.length : '') + '</span>';
 
     if (an.win && !st.won) onWin(an);
@@ -564,6 +573,7 @@
 
   function applyHint() {
     var h = st.hint;
+    if (st.won) return;
     if (!h || !h.changes) return;
     beginEdit();
     h.changes.forEach(function (ch) { if (setEdge(ch.edge, ch.value)) st.edited = true; });
@@ -794,6 +804,7 @@
     toast('📌 분기 저장 · 지금 상태를 기억했습니다');
   }
   function restoreCheckpoint() {
+    if (st.won) { toast('완성된 울타리는 되돌릴 수 없습니다'); return; }
     if (!st.marks.length) { toast('저장된 분기가 없습니다'); return; }
     var m = st.marks.pop();
     beginEdit();
@@ -1081,6 +1092,7 @@
 
     $('btnBack').onclick = function () { leaveGame(false); };
     $('btnUndo').onclick = function () {
+      if (st.won) { toast('완성된 울타리는 되돌릴 수 없습니다'); return; }
       if (!st.history.length) return;
       st.future.push(st.board.slice());
       st.board = st.history.pop();
@@ -1088,6 +1100,7 @@
       sfx('x');
     };
     $('btnRedo').onclick = function () {
+      if (st.won) { toast('완성된 울타리는 되돌릴 수 없습니다'); return; }
       if (!st.future.length) return;
       st.history.push(st.board.slice());
       st.board = st.future.pop();
@@ -1099,6 +1112,7 @@
     $('btnMark').onclick = markCheckpoint;
     $('btnRestore').onclick = restoreCheckpoint;
     $('btnReset').onclick = function () {
+      if (st.won) { toast('이미 완성된 판입니다'); return; }
       openModal({
         title: '판을 초기화할까요?',
         body: '<p style="margin:0;font-size:13.5px;line-height:1.65;color:#c8c3b8">지금까지 그은 선과 X가 모두 지워집니다. (분기 저장은 유지)</p>',
