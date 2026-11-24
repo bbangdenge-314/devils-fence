@@ -296,6 +296,17 @@
     fitHintSpace(false);
   }
 
+  /* 클리어 판정이 성립한 렌더에서 onWin()이 st.won을 뒤늦게 true로 바꾸기 때문에,
+     툴바 잠금을 한 곳에 모아 판정 직후에도 다시 맞춘다. (cleared인데 복원·초기화가 눌리던 문제) */
+  function syncToolbar() {
+    if (!$('btnUndo')) return;
+    $('btnUndo').disabled = st.history.length === 0 || st.won;
+    $('btnRedo').disabled = st.future.length === 0 || st.won;
+    $('btnRestore').disabled = st.marks.length === 0 || st.won;
+    $('btnReset').disabled = !!st.won;
+    $('btnRestore').innerHTML = '↩️ <span>복원' + (st.marks.length ? ' ' + st.marks.length : '') + '</span>';
+  }
+
   function render() {
     var e = st.els;
     if (!e.svg) return;
@@ -339,13 +350,10 @@
     $('statLine').textContent = an.lineCount;
     $('statErrWrap').classList.toggle('warn', errCount > 0);
     $('statLeftWrap').classList.toggle('warn', false);
-    $('btnUndo').disabled = st.history.length === 0 || st.won;
-    $('btnRedo').disabled = st.future.length === 0 || st.won;
-    $('btnRestore').disabled = st.marks.length === 0 || st.won;
-    $('btnReset').disabled = !!st.won;
-    $('btnRestore').innerHTML = '↩️ <span>복원' + (st.marks.length ? ' ' + st.marks.length : '') + '</span>';
+    syncToolbar();
 
     if (an.win && !st.won) onWin(an);
+    if (st.won) syncToolbar();
     if (errCount > 0 && st.opts.warn && !st.lastErrBeep) {
       st.lastErrBeep = true; sfx('err');
       setTimeout(function () { st.lastErrBeep = false; }, 400);
@@ -855,6 +863,7 @@
     st.startAt = Date.now() - st.elapsed;
     $('timer').textContent = fmtTime(st.elapsed);
     render();
+    saveNow();
   }
 
   /* ---------------- home ---------------- */

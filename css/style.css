@@ -89,6 +89,10 @@ body {
   background: rgba(233, 201, 135, .06);
   white-space: nowrap;
 }
+.badge.ver {
+  font-size: 10.5px; letter-spacing: .12em; color: var(--gold-2);
+  padding: 5px 9px; border-color: rgba(233, 201, 135, .3);
+}
 
 .home-grid {
   display: grid; grid-template-columns: 1.08fr .92fr; gap: 16px; align-items: start;
@@ -200,7 +204,13 @@ body {
   font-size: 14px; font-weight: 700; letter-spacing: .01em; white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis;
 }
+.hud-meta { display: flex; align-items: center; gap: 6px; min-width: 0; }
 #hudSub { font-size: 11px; color: var(--muted-2); letter-spacing: .14em; text-transform: uppercase; }
+#hudVer {
+  font-style: normal; font-size: 9px; letter-spacing: .08em; line-height: 1.5;
+  color: var(--gold-3); border: 1px solid rgba(233, 201, 135, .3);
+  border-radius: 999px; padding: 0 5px; flex: 0 0 auto;
+}
 .hud-timer {
   display: flex; flex-direction: column; align-items: flex-end; padding-right: 2px;
 }
