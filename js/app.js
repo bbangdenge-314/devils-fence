@@ -515,7 +515,13 @@
     } else if (h.kind === 'wrong') {
       title.textContent = h.title;
       body.textContent = h.detail;
-      h.edges.forEach(function (ed) { st.els.edgeEls[ed].setAttribute('data-hl', 'on'); });
+      h.edges.forEach(function (ed) {
+        var g2 = st.els.g;
+        var x1, y1, x2, y2;
+        if (g2.eH[ed]) { x1 = g2.eCol[ed]; y1 = g2.eRow[ed]; x2 = x1 + 1; y2 = y1; }
+        else { x1 = g2.eCol[ed]; y1 = g2.eRow[ed]; x2 = x1; y2 = y1 + 1; }
+        st.els.gHint.appendChild(svgEl('line', { x1: x1, y1: y1, x2: x2, y2: y2, 'class': 'wrongLine' }));
+      });
     } else {
       title.textContent = h.title;
       body.textContent = h.detail;
