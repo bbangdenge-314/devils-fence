@@ -686,6 +686,7 @@
       var fk = st.puzzle.R + 'x' + st.puzzle.C + '-' + st.puzzle.meta.difficulty;
       var fb = st.freeBest[fk];
       if (fb == null || time < fb) { st.freeBest[fk] = time; isBest = true; writeJSON('df.v1.freeBest', st.freeBest); }
+      renderChips();
       record = { best: st.freeBest[fk], clears: 1 };
     }
 
@@ -897,6 +898,14 @@
       b.onclick = function () { st.freeSel.diff = d.key; renderChips(); };
       dc.appendChild(b);
     });
+    var fk = st.freeSel.size + 'x' + st.freeSel.size + '-' + st.freeSel.diff;
+    var fb = st.freeBest ? st.freeBest[fk] : null;
+    var note = $('freeNote');
+    if (note) {
+      note.textContent = fb != null
+        ? '이 조합 최고 기록 ' + fmtTime(fb) + ' · 모든 판은 유일해 검증을 통과합니다.'
+        : '모든 판은 유일해 검증을 통과합니다. 5×5~10×10은 즉석 생성, 12×12·15×15는 검증된 퍼즐 풀에서 출제됩니다.';
+    }
   }
 
   /* ---------------- guide ---------------- */
