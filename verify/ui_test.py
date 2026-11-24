@@ -182,6 +182,58 @@ def main():
         }""")
         check("PC 15×15 비겹침", geo["t"] >= geo["hudB"] - 1 and geo["b"] <= geo["barT"] + 1, geo)
 
+        # ---- 진행 저장 / 이어하기 ----
+        pg.evaluate("()=>window.DFApp.startStage('s2')")
+        pg.wait_for_timeout(200)
+        pg.evaluate("()=>window.DFApp.paint([0,1,2,3,4], [])")
+        pg.wait_for_timeout(700)
+        pg.reload(wait_until="load")
+        pg.wait_for_timeout(400)
+        has_resume = pg.eval_on_selector_all("#btnResume", "n=>n.length") == 1
+        pg.evaluate("()=>document.getElementById('btnResume').click()")
+        pg.wait_for_timeout(400)
+        resumed = pg.evaluate("()=>{const b=window.DFApp.board();let n=0;for(let i=0;i<b.length;i++) if(b[i]===1) n++; return n;}")
+        check("자동 저장 · 이어하기", has_resume and resumed == 5, (has_resume, resumed))
+
+        # ---- 스테이지 클리어 → 다음 스테이지 해금 ----
+        pg.evaluate("()=>{localStorage.clear(); location.reload();}")
+        pg.wait_for_timeout(500)
+        locked_before = pg.eval_on_selector_all(".stage.locked", "n=>n.length")
+        pg.evaluate("()=>window.DFApp.startStage('s1')")
+        pg.wait_for_timeout(200)
+        pg.evaluate("()=>window.DFApp.solveForTest()")
+        pg.wait_for_timeout(1400)
+        pg.evaluate("()=>{const b=document.querySelector('.modal-foot .btn.ghost'); }")
+        pg.keyboard.press("Escape")
+        pg.wait_for_timeout(200)
+        pg.evaluate("()=>window.DFApp.home()")
+        pg.wait_for_timeout(300)
+        locked_after = pg.eval_on_selector_all(".stage.locked", "n=>n.length")
+        check("클리어 시 다음 스테이지 해금", locked_before == 4 and locked_after == 3, (locked_before, locked_after))
+
+        # ---- 옵션: 실시간 경고 끄기 ----
+        pg.evaluate("()=>window.DFApp.startStage('s1')")
+        pg.wait_for_timeout(200)
+        pg.evaluate("""()=>{
+          const p = window.DFApp.puzzle();
+          const g = window.DFSolver.geom(p.R,p.C);
+          // 0 단서 칸에 선을 하나 그어 일부러 초과 상태 만들기
+          let target = null;
+          for (let r=0;r<p.R && target===null;r++) for (let c=0;c<p.C;c++) if (p.clues[r][c]===0){ target=[r,c]; break; }
+          if (target) window.DFApp.paint([g.H(target[0], target[1])], []);
+        }""")
+        pg.wait_for_timeout(200)
+        warns_on = pg.eval_on_selector_all(".cell.over", "n=>n.length")
+        pg.evaluate("()=>document.getElementById('btnOptions').click()")
+        pg.wait_for_timeout(250)
+        pg.evaluate("()=>document.querySelector('.switch').click()")
+        pg.wait_for_timeout(150)
+        pg.keyboard.press("Escape")
+        pg.wait_for_timeout(300)
+        warns_off = pg.eval_on_selector_all(".cell.over", "n=>n.length")
+        check("옵션: 실시간 오류 경고 on/off", warns_on > 0 and warns_off == 0, (warns_on, warns_off))
+        pg.evaluate("()=>{window.DFApp.st.opts.warn=true; document.querySelectorAll('.switch').forEach(s=>{}); }")
+
         check("PC 콘솔 오류 0건", len(errors) == 0, errors[:3])
 
         # ---------------- mobile ----------------

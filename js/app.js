@@ -278,6 +278,24 @@
     frame.style.height = size + 'px';
   }
 
+  function fitHintSpace(open) {
+    var area = $('boardArea');
+    var panel = $('hintPanel');
+    if (!area || !panel) return;
+    if (open && window.innerWidth < 1100) {
+      area.style.paddingBottom = (panel.offsetHeight + 20) + 'px';
+    } else {
+      area.style.paddingBottom = '';
+    }
+    layoutBoard();
+  }
+
+  function hideHintPanel() {
+    $('hintPanel').classList.add('hidden');
+    clearHintHighlights();
+    fitHintSpace(false);
+  }
+
   function render() {
     var e = st.els;
     if (!e.svg) return;
@@ -535,7 +553,7 @@
       }
     }
     panel.classList.remove('hidden');
-    requestAnimationFrame(layoutBoard);
+    requestAnimationFrame(function () { fitHintSpace(true); });
   }
 
   function applyHint() {
@@ -545,8 +563,7 @@
     h.changes.forEach(function (ch) { if (setEdge(ch.edge, ch.value)) st.edited = true; });
     sfx('line');
     commitEdit();
-    clearHintHighlights();
-    $('hintPanel').classList.add('hidden');
+    hideHintPanel();
   }
 
   /* ---------------- timer / game flow ---------------- */
@@ -587,6 +604,7 @@
     st.boardName = opts.name || '';
     st.boardSub = opts.sub || (puzzle.R + ' × ' + puzzle.C);
     $('hintPanel').classList.add('hidden');
+    $('boardArea').style.paddingBottom = '';
     showScreen('game');
     buildBoard(puzzle);
     $('hudMode').textContent = st.boardName;
@@ -1062,7 +1080,7 @@
     };
     $('btnHint').onclick = showHint;
     $('hintApply').onclick = applyHint;
-    $('hintClose').onclick = function () { $('hintPanel').classList.add('hidden'); clearHintHighlights(); requestAnimationFrame(layoutBoard); };
+    $('hintClose').onclick = hideHintPanel;
     $('btnMark').onclick = markCheckpoint;
     $('btnRestore').onclick = restoreCheckpoint;
     $('btnReset').onclick = function () {
@@ -1111,7 +1129,7 @@
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape') {
         if ($('modalRoot').classList.contains('open')) closeModal();
-        else { $('hintPanel').classList.add('hidden'); clearHintHighlights(); layoutBoard(); }
+        else hideHintPanel();
         return;
       }
       if (st.screen !== 'game') return;
@@ -1126,6 +1144,10 @@
       }
     });
     window.addEventListener('beforeunload', function () { saveNow(); });
+    document.addEventListener('visibilitychange', function () {
+      if (document.hidden) pauseTimer();
+      else if (st.screen === 'game' && !st.won && st.els.svg) startTimer();
+    });
   }
 
   function saveOptsSoon() {
@@ -1156,7 +1178,6 @@
       var s = STAGES.filter(function (x) { return x.id === id; })[0];
       var pz = PRESETS.stages[id];
       if (!s || !pz) return false;
-      st.unlocked = 99;
       startPuzzle(pz, { mode: 'stage', stageId: s.id, name: s.name, sub: s.sub });
       return true;
     },
